@@ -13,6 +13,8 @@ export function registerPlanCommand(program: Command): void {
     .option('-o, --output <path>', '輸出路徑')
     .option('--platform <platform>', '測試平台 (web|ios|android)', 'web')
     .option('--app-name <name>', 'App 名稱 (Mobile 平台用)')
+    .option('--cookie <name=value@domain...>', 'Inject cookies for authenticated crawling (can be used multiple times)')
+    .option('--header <name:value...>', 'Inject HTTP headers for authenticated crawling (can be used multiple times)')
     .action(async (url: string | undefined, options) => {
       const platform = options.platform as 'web' | 'ios' | 'android';
       const outputPath =
@@ -72,10 +74,45 @@ export function registerPlanCommand(program: Command): void {
 
       output.step('search', `正在爬取 ${url} ...`);
 
+      // Parse --cookie flags: name=value@domain
+      const cookies: Array<{ name: string; value: string; domain: string }> = [];
+      if (options.cookie) {
+        const cookieList = Array.isArray(options.cookie) ? options.cookie : [options.cookie];
+        for (const c of cookieList) {
+          const atIndex = (c as string).lastIndexOf('@');
+          if (atIndex > 0) {
+            const nameValue = (c as string).slice(0, atIndex);
+            const domain = (c as string).slice(atIndex + 1);
+            const eqIndex = nameValue.indexOf('=');
+            if (eqIndex > 0) {
+              cookies.push({
+                name: nameValue.slice(0, eqIndex),
+                value: nameValue.slice(eqIndex + 1),
+                domain,
+              });
+            }
+          }
+        }
+      }
+
+      // Parse --header flags: name:value
+      const headers: Record<string, string> = {};
+      if (options.header) {
+        const headerList = Array.isArray(options.header) ? options.header : [options.header];
+        for (const h of headerList) {
+          const colonIndex = (h as string).indexOf(':');
+          if (colonIndex > 0) {
+            headers[(h as string).slice(0, colonIndex).trim()] = (h as string).slice(colonIndex + 1).trim();
+          }
+        }
+      }
+
       const crawler = new Crawler({
         depth,
         exclude,
         timeout: 30000,
+        cookies: cookies.length > 0 ? cookies : undefined,
+        headers: Object.keys(headers).length > 0 ? headers : undefined,
       });
 
       try {

@@ -1,9 +1,13 @@
-name: "登入流程測試"
-description: "測試基本登入功能"
+name: "Login Flow Test"
+description: "Test basic login functionality with variable substitution"
+vars:
+  BASE_URL: "https://example.com"
+  EMAIL: "test@example.com"
+  PASSWORD: "TestPassword123"
 steps:
-  - step: 打開 https://example.com/login
-  - step: 在 email 欄位輸入 test@example.com
-  - step: 在 password 欄位輸入 TestPassword123
-  - step: 點擊 登入
-  - expect: 頁面導向 /dashboard
-  - expect: 顯示 歡迎回來
+  - step: navigate to ${{BASE_URL}}/login
+  - step: type ${{EMAIL}} into email
+  - step: type ${{PASSWORD}} into password
+  - step: click Login
+  - expect: redirect to /dashboard
+  - expect: show Welcome

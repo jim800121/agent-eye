@@ -11,6 +11,8 @@ export interface TestPlan {
   version: string;
   platform?: 'web' | 'ios' | 'android';
   app?: AppConfig;
+  vars?: Record<string, string>;
+  beforeAll?: StepPlan[];
   pages: PagePlan[];
 }
 
@@ -34,6 +36,7 @@ export interface ElementInfo {
 export interface ScenarioPlan {
   name: string;
   description?: string;
+  vars?: Record<string, string>;
   steps: StepPlan[];
 }
 

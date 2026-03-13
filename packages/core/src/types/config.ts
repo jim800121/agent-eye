@@ -44,6 +44,10 @@ export interface AgentEyeConfig {
   maxPages: number;
   /** Mobile 設定 */
   mobile?: MobileConfig;
+  /** Variable substitution: key-value pairs */
+  vars?: Record<string, string>;
+  /** Path to .env file for variable substitution */
+  envFile?: string;
 }
 
 export const DEFAULT_CONFIG: AgentEyeConfig = {

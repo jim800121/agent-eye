@@ -1,2 +1,2 @@
 export { Crawler } from './crawler.js';
-export type { CrawlerOptions, CrawledPage } from './crawler.js';
+export type { CrawlerOptions, CrawlerCookie, CrawlerProgress, CrawledPage } from './crawler.js';

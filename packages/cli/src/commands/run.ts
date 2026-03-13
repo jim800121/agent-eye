@@ -29,6 +29,8 @@ export function registerRunCommand(program: Command): void {
     .option('--app-activity <activity>', 'Android Launch Activity')
     .option('--appium-host <host>', 'Appium Server Host', 'localhost')
     .option('--appium-port <port>', 'Appium Server Port', '4723')
+    .option('--var <key=value...>', 'Set variables (can be used multiple times)')
+    .option('--env-file <path>', 'Path to .env file for variable substitution')
     .action(async (options) => {
       const cwd = process.cwd();
       const agenteyeDir = join(cwd, '.agenteye');
@@ -41,6 +43,8 @@ export function registerRunCommand(program: Command): void {
         timeout: parseInt(options.timeout, 10),
         parallel: parseInt(options.parallel, 10),
         outputDir: agenteyeDir,
+        vars: Object.keys(cliVars).length > 0 ? cliVars : undefined,
+        envFile: options.envFile,
       };
 
       // Add mobile config if platform is not web
@@ -55,6 +59,18 @@ export function registerRunCommand(program: Command): void {
           appiumHost: options.appiumHost,
           appiumPort: parseInt(options.appiumPort, 10),
         };
+      }
+
+      // Parse --var KEY=VALUE flags
+      const cliVars: Record<string, string> = {};
+      if (options.var) {
+        const varList = Array.isArray(options.var) ? options.var : [options.var];
+        for (const v of varList) {
+          const eqIndex = (v as string).indexOf('=');
+          if (eqIndex > 0) {
+            cliVars[(v as string).slice(0, eqIndex)] = (v as string).slice(eqIndex + 1);
+          }
+        }
       }
 
       const planner = new Planner();

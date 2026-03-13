@@ -58,6 +58,10 @@ agenteye plan https://your-app.com
 agenteye plan https://your-app.com -d 5          # Crawl depth 5
 agenteye plan https://your-app.com -e "/admin/*"  # Exclude admin paths
 
+# Authenticated crawling — inject cookies or headers
+agenteye plan https://your-app.com --cookie "session=abc123@your-app.com"
+agenteye plan https://your-app.com --header "Authorization:Bearer token123"
+
 # Mobile — generate skeleton plan
 agenteye plan --platform ios --app-name "MyApp"
 agenteye plan --platform android --app-name "MyApp"
@@ -91,6 +95,10 @@ agenteye run --platform android \
   --app-package com.example.myapp \
   --app-activity .MainActivity \
   --platform-version "14"
+
+# Variable substitution
+agenteye run --var EMAIL=test@real.com --var PASSWORD=secret
+agenteye run --env-file .env.staging
 ```
 
 #### `agenteye report [run_id]`
@@ -104,18 +112,56 @@ agenteye report abc123   # Specific run ID
 
 ### YAML Test Scripts
 
-Write test steps in natural language:
+Write test steps in natural language, with optional variable substitution:
 
 ```yaml
 name: "Login Flow Test"
+vars:
+  BASE_URL: "https://your-app.com"
+  EMAIL: "test@example.com"
+  PASSWORD: "MyPassword123"
 steps:
-  - step: navigate to https://your-app.com/login
-  - step: type test@example.com into Email
-  - step: type MyPassword123 into Password
+  - step: navigate to ${{BASE_URL}}/login
+  - step: type ${{EMAIL}} into Email
+  - step: type ${{PASSWORD}} into Password
   - step: click Login
     expect: redirect to /dashboard
   - expect: show Welcome
 ```
+
+Override variables at runtime: `agenteye run -s login-test.yaml --var EMAIL=real@test.com`
+
+#### `beforeAll` Login Flow
+
+Run login steps once and share the authenticated session across all test scenarios:
+
+```yaml
+target: "https://myapp.com"
+vars:
+  EMAIL: "test@example.com"
+  PASSWORD: "TestPass123"
+beforeAll:
+  - step: "navigate to https://myapp.com/login"
+  - step: "type ${{EMAIL}} into Email"
+  - step: "type ${{PASSWORD}} into Password"
+  - step: "click Login"
+  - step: "wait 2 s"
+pages:
+  - url: "https://myapp.com/dashboard"
+    scenarios:
+      - name: "Dashboard Test"
+        steps:
+          - expect: "show Dashboard"
+```
+
+#### Variable Sources (Precedence)
+
+| Priority | Source | Example |
+|----------|--------|---------|
+| Highest | CLI `--var` | `--var EMAIL=test@real.com` |
+| | `process.env` | `EMAIL=ci@test.com agenteye run` |
+| | `.env` file | `--env-file .env.staging` |
+| Lowest | YAML `vars:` section | `vars: { EMAIL: "default@test.com" }` |
 
 **Supported Step Syntax:**
 

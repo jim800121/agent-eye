@@ -1,4 +1,4 @@
-import type { IDriver, IDriverPage, DriverLaunchOptions } from '../driver/types.js';
+import type { IDriver, IDriverContext, IDriverPage, DriverLaunchOptions } from '../driver/types.js';
 import { createDriver } from '../driver/index.js';
 import type { TestPlan, ScenarioPlan, StepPlan } from '../types/plan.js';
 import type { TestResult, StepResult } from '../types/report.js';
@@ -6,6 +6,13 @@ import type { MobileConfig } from '../types/config.js';
 import { Collector } from '../collector/collector.js';
 import { Screenshotter } from '../screenshotter/screenshotter.js';
 import { logger } from '../utils/logger.js';
+import { resolveVariables, interpolate } from '../utils/variables.js';
+
+export interface RunnerProgress {
+  current: number;
+  total: number;
+  message: string;
+}
 
 export interface RunnerOptions {
   platform: 'web' | 'ios' | 'android';
@@ -15,6 +22,9 @@ export interface RunnerOptions {
   outputDir: string;
   saveDomSnapshot: boolean;
   mobile?: MobileConfig;
+  vars?: Record<string, string>;
+  envFile?: string;
+  onProgress?: (progress: RunnerProgress) => void;
 }
 
 interface ParsedAction {
@@ -110,6 +120,7 @@ const EXPECT_PATTERNS: Array<{
 
 export class Runner {
   private driver: IDriver | null = null;
+  private vars: Record<string, string> = {};
 
   constructor(private options: RunnerOptions) {}
 
@@ -138,35 +149,88 @@ export class Runner {
   }
 
   async runPlan(plan: TestPlan): Promise<TestResult[]> {
+    this.vars = resolveVariables({
+      yamlVars: plan.vars,
+      envFile: this.options.envFile,
+      cliVars: this.options.vars,
+    });
+
     this.driver = await createDriver(this.buildLaunchOptions());
     const results: TestResult[] = [];
 
+    // Execute beforeAll login/setup steps if defined
+    let sharedContext: IDriverContext | undefined;
+    if (plan.beforeAll?.length) {
+      this.emitProgress(0, 1, 'Running beforeAll setup (login/auth)...');
+      sharedContext = await this.driver.newContext();
+      const page = await sharedContext.newPage();
+      const collector = new Collector();
+      const screenshotter = new Screenshotter(this.options.outputDir);
+      collector.attach(page);
+
+      for (let i = 0; i < plan.beforeAll.length; i++) {
+        const stepPlan = plan.beforeAll[i];
+        const interpolated = this.interpolateStep(stepPlan);
+        const stepName = `beforeAll_step${i + 1}`;
+
+        if (interpolated.step) {
+          await this.executeStep(page, interpolated, collector, screenshotter, stepName, plan.target);
+        }
+        if (interpolated.expect) {
+          await this.executeExpect(page, interpolated, collector, screenshotter, stepName, plan.target);
+        }
+      }
+      logger.info('beforeAll setup completed');
+    }
+
     const activePages = plan.pages.filter((p) => !p.skip);
+    const totalScenarios = activePages.reduce((sum, p) => sum + p.scenarios.length, 0);
+    let completedScenarios = 0;
+
+    this.emitProgress(0, totalScenarios, `Starting ${totalScenarios} test scenarios...`);
 
     for (const pagePlan of activePages) {
       for (const scenario of pagePlan.scenarios) {
-        const result = await this.runScenario(scenario, pagePlan.url);
+        this.emitProgress(completedScenarios, totalScenarios, `Running: ${scenario.name}`);
+        const result = await this.runScenario(scenario, pagePlan.url, sharedContext);
         results.push(result);
+        completedScenarios++;
+        this.emitProgress(completedScenarios, totalScenarios, `Completed: ${scenario.name} (${result.status})`);
       }
     }
 
+    if (sharedContext) await sharedContext.close();
     await this.close();
     return results;
   }
 
   async runScript(scenario: ScenarioPlan, baseUrl?: string): Promise<TestResult> {
+    this.vars = resolveVariables({
+      yamlVars: scenario.vars,
+      envFile: this.options.envFile,
+      cliVars: this.options.vars,
+    });
+
     this.driver = await createDriver(this.buildLaunchOptions());
     const result = await this.runScenario(scenario, baseUrl || '');
     await this.close();
     return result;
   }
 
+  private interpolateStep(stepPlan: StepPlan): StepPlan {
+    return {
+      step: stepPlan.step ? interpolate(stepPlan.step, this.vars) : undefined,
+      expect: stepPlan.expect ? interpolate(stepPlan.expect, this.vars) : undefined,
+    };
+  }
+
   private async runScenario(
     scenario: ScenarioPlan,
     pageUrl: string,
+    existingContext?: IDriverContext,
   ): Promise<TestResult> {
     const startTime = Date.now();
-    const context = await this.driver!.newContext();
+    const context = existingContext || await this.driver!.newContext();
     const page = await context.newPage();
     const collector = new Collector();
     const screenshotter = new Screenshotter(this.options.outputDir);
@@ -180,10 +244,11 @@ export class Runner {
     for (const stepPlan of scenario.steps) {
       stepIndex++;
       const stepName = `${scenario.name}_step${stepIndex}`;
+      const interpolated = this.interpolateStep(stepPlan);
 
-      if (stepPlan.step) {
+      if (interpolated.step) {
         const result = await this.executeStep(
-          page, stepPlan, collector, screenshotter, stepName, pageUrl,
+          page, interpolated, collector, screenshotter, stepName, pageUrl,
         );
         stepResults.push(result);
         if (result.status === 'failed') overallStatus = 'failed';
@@ -191,9 +256,9 @@ export class Runner {
           overallStatus = 'warning';
       }
 
-      if (stepPlan.expect) {
+      if (interpolated.expect) {
         const result = await this.executeExpect(
-          page, stepPlan, collector, screenshotter, stepName, pageUrl,
+          page, interpolated, collector, screenshotter, stepName, pageUrl,
         );
         stepResults.push(result);
         if (result.status === 'failed') overallStatus = 'failed';
@@ -207,7 +272,8 @@ export class Runner {
       overallStatus = 'warning';
     }
 
-    await context.close();
+    // Only close context if we created it (not shared from beforeAll)
+    if (!existingContext) await context.close();
 
     return {
       test_name: scenario.name,
@@ -461,6 +527,10 @@ export class Runner {
     if (pageUrl) steps.push(`打開 ${pageUrl}`);
     steps.push(currentStep);
     return steps;
+  }
+
+  private emitProgress(current: number, total: number, message: string): void {
+    this.options.onProgress?.({ current, total, message });
   }
 
   async close(): Promise<void> {

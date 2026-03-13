@@ -2,11 +2,27 @@ import { chromium, type Browser, type Page } from 'playwright';
 import type { ElementInfo } from '../types/plan.js';
 import { logger } from '../utils/logger.js';
 
+export interface CrawlerCookie {
+  name: string;
+  value: string;
+  domain: string;
+  path?: string;
+}
+
+export interface CrawlerProgress {
+  current: number;
+  total: number;
+  message: string;
+}
+
 export interface CrawlerOptions {
   depth: number;
   exclude: string[];
   timeout: number;
   maxPages?: number;
+  cookies?: CrawlerCookie[];
+  headers?: Record<string, string>;
+  onProgress?: (progress: CrawlerProgress) => void;
 }
 
 export interface CrawledPage {
@@ -54,6 +70,11 @@ export class Crawler {
 
     this.visited.add(normalized);
     logger.info(`爬取: ${normalized} (深度: ${depth})`);
+    this.options.onProgress?.({
+      current: this.visited.size,
+      total: maxPages,
+      message: `Crawling: ${normalized}`,
+    });
 
     try {
       const crawled = await this.crawlPage(normalized);
@@ -68,7 +89,17 @@ export class Crawler {
   }
 
   private async crawlPage(url: string): Promise<CrawledPage> {
-    const context = await this.browser!.newContext();
+    const context = await this.browser!.newContext({
+      extraHTTPHeaders: this.options.headers,
+    });
+    if (this.options.cookies?.length) {
+      await context.addCookies(this.options.cookies.map((c) => ({
+        name: c.name,
+        value: c.value,
+        domain: c.domain,
+        path: c.path || '/',
+      })));
+    }
     const page = await context.newPage();
 
     try {
