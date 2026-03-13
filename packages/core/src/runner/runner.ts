@@ -429,9 +429,14 @@ export class Runner {
 
         case 'assert_text': {
           const text = action.value!;
-          const bodyText = await page.textContent('body');
-          if (!bodyText?.includes(text)) {
-            throw new Error(`預期頁面包含 "${text}"，但未找到`);
+          // Try textContent('body') for web, fallback to page source for native apps
+          let pageText = await page.textContent('body');
+          if (!pageText) {
+            // Native app: search page source (XML) for text in attributes and content
+            pageText = await page.content();
+          }
+          if (!pageText?.includes(text)) {
+            throw new Error(`Expected page to contain "${text}", but not found`);
           }
           break;
         }

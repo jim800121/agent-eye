@@ -17,7 +17,8 @@ type WDIOBrowser = {
   getUrl: () => Promise<string>;
   url: (url: string) => Promise<void>;
   pause: (ms: number) => Promise<void>;
-  execute: <T>(fn: () => T) => Promise<T>;
+  execute: <T>(fn: string | (() => T), ...args: unknown[]) => Promise<T>;
+  sendKeys: (keys: string[]) => Promise<void>;
   getContexts: () => Promise<string[]>;
   switchContext: (context: string) => Promise<void>;
   touchAction: (action: object) => Promise<void>;
@@ -37,6 +38,40 @@ type WDIOElement = {
   touchAction: (action: string | object) => Promise<void>;
 };
 
+/**
+ * Send text input using keyboard simulation with fallback chain.
+ * Handles Flutter, React Native, Jetpack Compose, and native apps.
+ *
+ * Strategy: mobile: type → sendKeys → addValue
+ * - mobile: type: Appium's native keyboard simulation (best for Flutter/Compose)
+ * - sendKeys: WebDriverIO keyboard simulation
+ * - addValue: Direct element value setting (works for native UIKit/Android Views)
+ */
+async function sendTextInput(browser: WDIOBrowser, el: WDIOElement, value: string): Promise<void> {
+  await el.click();
+  await browser.pause(300);
+
+  // Try mobile: type first (best Flutter/Compose support)
+  try {
+    await browser.execute('mobile: type', { text: value });
+    return;
+  } catch {
+    // Not supported or failed — fall through
+  }
+
+  // Try sendKeys (keyboard simulation)
+  try {
+    await browser.sendKeys([value]);
+    return;
+  } catch {
+    // Not supported — fall through
+  }
+
+  // Fallback: addValue (works for native UIKit/Android Views)
+  await el.clearValue();
+  await el.addValue(value);
+}
+
 class AppiumLocator implements IDriverLocator {
   constructor(
     private browser: WDIOBrowser,
@@ -54,9 +89,7 @@ class AppiumLocator implements IDriverLocator {
 
   async fill(value: string): Promise<void> {
     const el = await this.browser.$(this.selector);
-    await el.click();
-    await el.clearValue();
-    await el.addValue(value);
+    await sendTextInput(this.browser, el, value);
   }
 
   async screenshot(options: { path: string }): Promise<void> {
@@ -117,9 +150,7 @@ class AppiumPage implements IDriverPage {
   async fill(target: string, value: string): Promise<void> {
     const selector = this.adaptSelector(target);
     const el = await this.browser.$(selector);
-    await el.click();
-    await el.clearValue();
-    await el.addValue(value);
+    await sendTextInput(this.browser, el, value);
   }
 
   async textContent(selector: string): Promise<string | null> {

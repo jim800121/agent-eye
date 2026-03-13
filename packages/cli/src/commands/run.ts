@@ -36,6 +36,18 @@ export function registerRunCommand(program: Command): void {
       const agenteyeDir = join(cwd, '.agenteye');
       const platform = options.platform as 'web' | 'ios' | 'android';
 
+      // Parse --var KEY=VALUE flags
+      const cliVars: Record<string, string> = {};
+      if (options.var) {
+        const varList = Array.isArray(options.var) ? options.var : [options.var];
+        for (const v of varList) {
+          const eqIndex = (v as string).indexOf('=');
+          if (eqIndex > 0) {
+            cliVars[(v as string).slice(0, eqIndex)] = (v as string).slice(eqIndex + 1);
+          }
+        }
+      }
+
       const config: AgentEyeConfig = {
         ...DEFAULT_CONFIG,
         platform,
@@ -59,18 +71,6 @@ export function registerRunCommand(program: Command): void {
           appiumHost: options.appiumHost,
           appiumPort: parseInt(options.appiumPort, 10),
         };
-      }
-
-      // Parse --var KEY=VALUE flags
-      const cliVars: Record<string, string> = {};
-      if (options.var) {
-        const varList = Array.isArray(options.var) ? options.var : [options.var];
-        for (const v of varList) {
-          const eqIndex = (v as string).indexOf('=');
-          if (eqIndex > 0) {
-            cliVars[(v as string).slice(0, eqIndex)] = (v as string).slice(eqIndex + 1);
-          }
-        }
       }
 
       const planner = new Planner();
