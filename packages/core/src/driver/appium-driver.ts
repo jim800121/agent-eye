@@ -28,6 +28,8 @@ type WDIOBrowser = {
 type WDIOElement = {
   click: () => Promise<void>;
   setValue: (value: string) => Promise<void>;
+  addValue: (value: string) => Promise<void>;
+  clearValue: () => Promise<void>;
   getText: () => Promise<string>;
   isDisplayed: () => Promise<boolean>;
   isExisting: () => Promise<boolean>;
@@ -52,7 +54,9 @@ class AppiumLocator implements IDriverLocator {
 
   async fill(value: string): Promise<void> {
     const el = await this.browser.$(this.selector);
-    await el.setValue(value);
+    await el.click();
+    await el.clearValue();
+    await el.addValue(value);
   }
 
   async screenshot(options: { path: string }): Promise<void> {
@@ -113,7 +117,9 @@ class AppiumPage implements IDriverPage {
   async fill(target: string, value: string): Promise<void> {
     const selector = this.adaptSelector(target);
     const el = await this.browser.$(selector);
-    await el.setValue(value);
+    await el.click();
+    await el.clearValue();
+    await el.addValue(value);
   }
 
   async textContent(selector: string): Promise<string | null> {
