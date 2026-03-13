@@ -1,0 +1,16 @@
+name: "Android 登入流程測試"
+platform: android
+app:
+  app_package: "com.example.demoapp"
+  app_activity: ".MainActivity"
+  device: "Pixel 7"
+  platform_version: "14"
+steps:
+  - step: "等待 3 秒"
+  - step: "點擊 登入"
+  - step: "在 帳號 欄位 輸入 test@example.com"
+  - step: "在 密碼 欄位 輸入 password123"
+  - step: "點擊 確認"
+    expect: "顯示 歡迎"
+  - step: "swipe up"
+    expect: "顯示 設定"

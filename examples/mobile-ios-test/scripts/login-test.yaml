@@ -1,0 +1,15 @@
+name: "iOS 登入流程測試"
+platform: ios
+app:
+  bundle_id: "com.example.demoapp"
+  device: "iPhone 15"
+  platform_version: "17.0"
+steps:
+  - step: "等待 3 秒"
+  - step: "點擊 登入"
+  - step: "在 帳號 欄位 輸入 test@example.com"
+  - step: "在 密碼 欄位 輸入 password123"
+  - step: "點擊 確認"
+    expect: "顯示 歡迎"
+  - step: "swipe down"
+    expect: "顯示 個人資料"

@@ -1,0 +1,33 @@
+{
+  "name": "@agenteye/core",
+  "version": "0.1.0",
+  "description": "AgentEye 核心引擎 — AI Agent 的自動化 UI 測試框架",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "playwright": "^1.50.0",
+    "yaml": "^2.6.0"
+  },
+  "optionalDependencies": {
+    "webdriverio": "^9.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "tsup": "^8.0.0",
+    "vitest": "^2.0.0"
+  },
+  "license": "MIT"
+}

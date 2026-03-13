@@ -1,0 +1,25 @@
+{
+  "name": "@agenteye/mcp-server",
+  "version": "0.1.0",
+  "description": "AgentEye MCP Server — 讓 AI Agent 直接呼叫自動化 UI 測試",
+  "main": "./dist/index.js",
+  "bin": {
+    "agenteye-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@agenteye/core": "0.1.0",
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "yaml": "^2.6.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "tsup": "^8.0.0",
+    "vitest": "^2.0.0"
+  },
+  "license": "MIT"
+}
